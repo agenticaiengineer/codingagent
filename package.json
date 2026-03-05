@@ -1,0 +1,102 @@
+{
+  "name": "@agenticaiengineer/codingagent",
+  "version": "0.0.3",
+  "description": "An autonomous AI coding agent for your terminal. Read, write, edit files, run commands, search the web, and manage sub-agents.",
+  "author": "agenticaiengineer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenticaiengineer/codingagent.git"
+  },
+  "homepage": "https://github.com/agenticaiengineer/codingagent",
+  "bugs": {
+    "url": "https://github.com/agenticaiengineer/codingagent/issues"
+  },
+  "keywords": [
+    "ai",
+    "coding",
+    "agent",
+    "llm",
+    "anthropic",
+    "claude",
+    "cli",
+    "developer-tools",
+    "code-assistant",
+    "mcp",
+    "terminal",
+    "automation",
+    "code-generation"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "codingagent": "./dist/index.js",
+    "codingagent-gateway": "./dist/gateway.js"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/gateway.js",
+    "dist/gateway.js.map",
+    "dist/agent-worker.js",
+    "dist/agent-worker.js.map",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc",
+    "bundle": "node publish/bundle.mjs",
+    "test": "npm run bundle && node tests/integration-test.mjs --agent",
+    "test:bundle": "node publish/smoke-test.mjs",
+    "test:integration": "node tests/integration-test.mjs",
+    "test:agent": "node tests/integration-test.mjs --agent",
+    "test:all": "node tests/integration-test.mjs --all",
+    "prepublishOnly": "npm run clean && npm run bundle && npm run test:bundle && npm run test:integration",
+    "start": "tsx src/index.ts",
+    "dev": "tsx src/index.ts",
+    "dev:safe": "tsc-watch --onSuccess \"node dist/index.js\"",
+    "dev:gateway": "node dist/gateway/gateway.js --auto-reload",
+    "dev:gateway:terminal": "node dist/gateway/gateway.js --terminal --auto-reload",
+    "dev:gateway:telegram": "node dist/gateway/gateway.js --telegram --auto-reload",
+    "dev:gateway:teams": "node dist/gateway/gateway.js --teams --auto-reload",
+    "resume": "tsx src/index.ts --resume",
+    "telegram": "tsx src/scripts/telegram.ts",
+    "teams": "tsx src/scripts/teams.ts",
+    "gateway": "tsx src/gateway/gateway.ts",
+    "gateway:terminal": "tsx src/gateway/gateway.ts --terminal",
+    "gateway:telegram": "tsx src/gateway/gateway.ts --telegram",
+    "gateway:teams": "tsx src/gateway/gateway.ts --teams",
+    "test:io-port": "tsx src/ports/io-port.test.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  },
+  "optionalDependencies": {
+    "onnxruntime-node": "^1.21.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@huggingface/transformers": "^3.0.0",
+    "@types/diff": "^6.0.0",
+    "@types/node": "^22.0.0",
+    "@wasm-audio-decoders/flac": "^0.2.10",
+    "ansi-diff": "^1.2.0",
+    "diff": "^8.0.3",
+    "esbuild": "^0.27.3",
+    "glob": "^11.0.0",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "mpg123-decoder": "^1.0.3",
+    "ogg-opus-decoder": "^1.7.3",
+    "tsc-watch": "^7.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

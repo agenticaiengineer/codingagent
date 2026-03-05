@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.js
+*.d.ts
+*.js.map
+!src/**
+nul
+.env
+.env.*
+bench/*.wav
+bench/*.oga
+bench/*.ogg
+bench/*.mp3
+bench/*.flac
