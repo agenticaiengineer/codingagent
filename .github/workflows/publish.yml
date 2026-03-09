@@ -1,0 +1,57 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version change
+        id: version
+        run: |
+          OLD=$(git show HEAD~1:package.json | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))")
+          NEW=$(node -p "require('./package.json').version")
+          echo "old=$OLD"
+          echo "new=$NEW"
+          echo "old=$OLD" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          if [ "$OLD" != "$NEW" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Version changed: $OLD → $NEW — will publish"
+          else
+            echo "Version unchanged ($NEW) — skipping publish"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.changed == 'true'
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm run clean
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm run bundle
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm run test:bundle
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm run test:integration
+        if: steps.version.outputs.changed == 'true'
+
+      - name: Publish to npm
+        if: steps.version.outputs.changed == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
