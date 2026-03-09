@@ -1,4 +1,4 @@
-import { mkdirSync, openSync, writeSync, closeSync, statSync, lstatSync, realpathSync, unlinkSync } from "fs";
+import { mkdirSync, openSync, writeSync, closeSync, statSync, lstatSync, realpathSync, unlinkSync, readFileSync } from "fs";
 import { resolve, dirname, basename } from "path";
 import type { Tool, ToolInput, ToolContext, ToolResult } from "../core/types.js";
 import { requireFilePath, ToolInputError, hasErrnoCode, countLines } from "./validate.js";
@@ -196,6 +196,49 @@ export const writeTool: Tool = {
         }
       }
 
+      // Preserve the original file's line ending convention. The Read tool
+      // strips \r from \r\n line endings (read.ts line 378: split(/\r?\n/)),
+      // so the LLM only ever sees \n-terminated content. When the LLM writes
+      // back content based on what it read, it uses \n — but the original file
+      // may use \r\n (Windows convention). Without this normalization, the Write
+      // tool would silently convert CRLF files to LF, causing:
+      //   - `git add` warnings: "fatal: LF would be replaced by CRLF"
+      //   - Noisy diffs showing every line changed (line ending difference)
+      //   - Inconsistent line endings within a project
+      //
+      // Detection strategy: when overwriting an existing file, read its current
+      // content and check if it uses CRLF. If so, and the incoming content uses
+      // only LF, convert the content to CRLF to match. This is the same
+      // approach already used by edit.ts (lines 295-341) for old_string/new_string.
+      //
+      // For new files, we don't normalize — the content is written as-is,
+      // respecting whatever line endings the LLM chose (typically \n).
+      let writeContent = content;
+      if (!isNewFile) {
+        const contentHasCRLF = writeContent.includes("\r\n");
+        const contentHasLF = !contentHasCRLF && writeContent.includes("\n");
+        if (contentHasLF) {
+          // Content uses LF — check if the original file uses CRLF
+          try {
+            const existingContent = readFileSync(writePath, "utf-8");
+            const fileHasCRLF = existingContent.includes("\r\n");
+            if (fileHasCRLF) {
+              // Original file uses CRLF but content uses LF — convert to CRLF
+              // to preserve the file's convention.
+              writeContent = writeContent.replace(/\n/g, "\r\n");
+            }
+          } catch {
+            // If we can't read the existing file (e.g., EACCES), fall through
+            // and write the content as-is. The atomic write below will fail
+            // with its own error if permissions are truly broken.
+          }
+        }
+      }
+
+      // Recalculate content byte length after potential CRLF conversion,
+      // since adding \r bytes increases the size.
+      const writeContentBytes = Buffer.byteLength(writeContent, "utf-8");
+
       // Ensure parent directory exists. Use writePath's directory so when
       // writing through a symlink, the temp file is in the target's directory
       // (same filesystem for atomic rename).
@@ -242,7 +285,7 @@ export const writeTool: Tool = {
         try {
           const wfd = openSync(tmpPath, "wx");
           try {
-            writeSync(wfd, content, 0, "utf-8");
+            writeSync(wfd, writeContent, 0, "utf-8");
           } finally {
             closeSync(wfd);
           }
@@ -276,12 +319,11 @@ export const writeTool: Tool = {
       // useful when writing large generated files where a truncation or
       // encoding issue could silently lose content.
       const lineCount = countLines(content);
-      // Reuse the byte length computed earlier (line 61) instead of calling
-      // Buffer.byteLength a second time — the content hasn't changed since
-      // then, and the call is O(n) in the string length.
-      const sizeStr = contentBytes < 1024
-        ? `${contentBytes} bytes`
-        : `${(contentBytes / 1024).toFixed(1)} KB`;
+      // Use writeContentBytes (post-CRLF conversion) for size reporting since
+      // that's what was actually written to disk.
+      const sizeStr = writeContentBytes < 1024
+        ? `${writeContentBytes} bytes`
+        : `${(writeContentBytes / 1024).toFixed(1)} KB`;
       const action = isNewFile ? "created" : "written";
       const lineWord = lineCount === 1 ? "line" : "lines";
 
